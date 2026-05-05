@@ -25,11 +25,11 @@ p.sub{color:var(--text-muted);font-size:14px;margin-bottom:28px}
 .input-wrap i{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:14px}
 .form-control{width:100%;padding:11px 14px 11px 38px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-size:14px;font-family:inherit;outline:none;transition:all var(--transition)}
 .form-control:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(193,127,62,0.12)}
-select.form-control{padding-left:38px;cursor:pointer}
 .btn-auth{width:100%;padding:13px;background:var(--accent);color:white;border:none;border-radius:8px;font-size:15px;font-weight:500;font-family:inherit;cursor:pointer;transition:all var(--transition);margin-top:8px}
 .btn-auth:hover{background:#a86c2e;box-shadow:0 4px 14px rgba(193,127,62,0.35);transform:translateY(-1px)}
 .auth-footer{margin-top:20px;text-align:center;font-size:13.5px;color:var(--text-muted)}
 .auth-footer a{color:var(--accent);text-decoration:none;font-weight:500}
+.role-badge{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--accent-light);border:1px solid #e8d5b8;border-radius:8px;font-size:13.5px;color:var(--accent);margin-bottom:16px}
 @keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
 </style>
 </head>
@@ -54,7 +54,17 @@ select.form-control{padding-left:38px;cursor:pointer}
       {% endfor %}{% endif %}
     {% endwith %}
 
+    <!-- Role indicator (display only, not editable) -->
+    <div class="role-badge">
+      <i class="fas fa-graduation-cap"></i>
+      Registering as <strong style="margin-left:4px">Student</strong>
+      <span style="margin-left:auto;font-size:12px;opacity:.7">Staff accounts are created by Admin</span>
+    </div>
+
     <form method="POST">
+      <!-- Hidden role field — always Student -->
+      <input type="hidden" name="role" value="Student">
+
       <div class="form-group">
         <label class="form-label">Full Name</label>
         <div class="input-wrap">
@@ -76,16 +86,7 @@ select.form-control{padding-left:38px;cursor:pointer}
           <input type="password" name="password" class="form-control" placeholder="Create a password" required minlength="6">
         </div>
       </div>
-      <div class="form-group">
-        <label class="form-label">Register as</label>
-        <div class="input-wrap">
-          <i class="fas fa-id-card"></i>
-          <select name="role" class="form-control">
-            <option value="Student">Student</option>
-            <option value="Staff">Staff</option>
-          </select>
-        </div>
-      </div>
+
       <button type="submit" class="btn-auth">Create Account <i class="fas fa-arrow-right" style="margin-left:6px"></i></button>
     </form>
     <div class="auth-footer">Already have an account? <a href="/login">Sign in</a></div>
