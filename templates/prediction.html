@@ -110,7 +110,7 @@
 </div>
 {% endif %}
 
-<!-- SECTION 2: CATEGORY SUMMARY CARDS -->
+<!-- SECTION 2: CATEGORY SUMMARY CARDS + CHART -->
 {% if category_summary %}
 <div style="margin-bottom:12px">
   <h3 style="font-size:15px;font-weight:600;color:var(--text)">
@@ -138,6 +138,20 @@
   </div>
   {% endfor %}
 </div>
+
+<!-- Category Bar Chart -->
+<div class="card" style="margin-bottom:20px">
+  <div class="card-header" style="margin-bottom:16px">
+    <h3 class="card-title">
+      <i class="fas fa-chart-bar" style="margin-right:8px;color:var(--accent)"></i>
+      Demand by Category
+      <span style="font-size:12px;color:var(--text-muted);font-weight:400">(tomorrow)</span>
+    </h3>
+  </div>
+  <div style="position:relative;height:220px;padding:0 8px">
+    <canvas id="categoryChart"></canvas>
+  </div>
+</div>
 {% endif %}
 
 <!-- SECTION 3: BOOK-LEVEL DEMAND PREDICTIONS -->
@@ -154,6 +168,12 @@
   </div>
 
   {% if predictions %}
+
+  <!-- Book-Level Bar Chart -->
+  <div style="position:relative;height:260px;margin-bottom:24px;padding:0 8px">
+    <canvas id="bookChart"></canvas>
+  </div>
+
   <div class="table-wrap">
     <table>
       <thead>
@@ -229,4 +249,138 @@
   <strong>Confidence:</strong> High = 14+ days, Medium = 7–13 days, Low &lt;7 days &nbsp;|&nbsp;
   <strong>Low Stock Urgency:</strong> Critical = out of stock, High = ≤3 days, Medium = ≤7 days, Low = ≤14 days
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+// ── Shared chart defaults ──────────────────────────────────────────────────
+const accent  = '#c17f3e';
+const accent2 = '#4a7c6f';
+const muted   = '#7a736b';
+const border  = '#e8e3dc';
+const bg      = '#f7f5f2';
+
+Chart.defaults.font.family = "'DM Sans', sans-serif";
+Chart.defaults.color = muted;
+
+// ── CATEGORY CHART ─────────────────────────────────────────────────────────
+{% if category_summary %}
+const catLabels = [{% for c in category_summary %}'{{ c.category }}'{% if not loop.last %},{% endif %}{% endfor %}];
+const catData   = [{% for c in category_summary %}{{ c.predicted_demand }}{% if not loop.last %},{% endif %}{% endfor %}];
+
+const catColors = [
+  '#c17f3e','#4a7c6f','#5b8fc9','#c0544a',
+  '#8f6bbf','#c9913e','#3e7c8f','#bf7a4a'
+];
+
+new Chart(document.getElementById('categoryChart'), {
+  type: 'bar',
+  data: {
+    labels: catLabels,
+    datasets: [{
+      label: 'Predicted Demand',
+      data: catData,
+      backgroundColor: catColors.slice(0, catLabels.length).map(c => c + 'cc'),
+      borderColor:     catColors.slice(0, catLabels.length),
+      borderWidth: 2,
+      borderRadius: 8,
+      borderSkipped: false,
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => ` ${ctx.parsed.y} expected borrow(s)`
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: { font: { size: 12 } }
+      },
+      y: {
+        beginAtZero: true,
+        ticks: { stepSize: 1, precision: 0 },
+        grid: { color: border }
+      }
+    }
+  }
+});
+{% endif %}
+
+// ── BOOK-LEVEL CHART ───────────────────────────────────────────────────────
+{% if predictions %}
+const bookLabels    = [{% for p in predictions %}'{{ p.item_name | replace("'", "\\'") }}'{% if not loop.last %},{% endif %}{% endfor %}];
+const bookPredicted = [{% for p in predictions %}{{ p.predicted_tomorrow }}{% if not loop.last %},{% endif %}{% endfor %}];
+const bookAvg       = [{% for p in predictions %}{{ p.avg_daily_borrows }}{% if not loop.last %},{% endif %}{% endfor %}];
+
+new Chart(document.getElementById('bookChart'), {
+  type: 'bar',
+  data: {
+    labels: bookLabels,
+    datasets: [
+      {
+        label: 'Predicted Tomorrow',
+        data: bookPredicted,
+        backgroundColor: accent + 'cc',
+        borderColor: accent,
+        borderWidth: 2,
+        borderRadius: 6,
+        borderSkipped: false,
+      },
+      {
+        label: 'Avg / Day',
+        data: bookAvg,
+        backgroundColor: accent2 + '88',
+        borderColor: accent2,
+        borderWidth: 2,
+        borderRadius: 6,
+        borderSkipped: false,
+        type: 'bar',
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: true,
+        position: 'top',
+        labels: { usePointStyle: true, pointStyle: 'rectRounded', padding: 16 }
+      },
+      tooltip: {
+        callbacks: {
+          label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y}`
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: {
+          font: { size: 11 },
+          maxRotation: 30,
+          callback: function(val, idx) {
+            const lbl = bookLabels[idx];
+            return lbl.length > 18 ? lbl.substring(0,18) + '…' : lbl;
+          }
+        }
+      },
+      y: {
+        beginAtZero: true,
+        ticks: { stepSize: 1, precision: 0 },
+        grid: { color: border }
+      }
+    }
+  }
+});
+{% endif %}
+</script>
 {% endblock %}
