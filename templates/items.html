@@ -97,7 +97,7 @@
           </button>
         {% endif %}
       {% elif session.role in ['Staff', 'Admin'] %}
-        <button class="btn btn-ghost btn-sm" onclick="openEditModal({{ item.item_id }}, '{{ item.item_name|replace("'","\\'") }}', '{{ item.description|replace("'","\\'")|default("") }}', '{{ item.category }}', {{ item.quantity }}, '{{ item.status }}')">
+        <button class="btn btn-ghost btn-sm" onclick="openEditModal({{ item.item_id }}, '{{ item.item_name|replace("'","\\'") }}', '{{ item.description|replace("'","\\'")|default("") }}', '{{ item.category }}', {{ item.quantity }})">
           <i class="fas fa-pen"></i> Edit
         </button>
         <a href="{{ url_for('item_log', item_id=item.item_id) }}" class="btn btn-ghost btn-sm">
@@ -194,13 +194,10 @@
           <input type="number" name="quantity" id="edit_qty" class="form-control" min="0">
         </div>
       </div>
-      <div class="form-group">
-        <label class="form-label">Status</label>
-        <select name="status" id="edit_status" class="form-control">
-          <option>Available</option>
-          <option>Low Stock</option>
-          <option>Out of Stock</option>
-        </select>
+      <!-- Status is auto-computed by backend based on quantity — no manual override -->
+      <div style="padding:10px 14px;background:var(--accent-light);border:1px solid #e8d5b8;border-radius:8px;font-size:13px;color:var(--accent);margin-bottom:16px">
+        <i class="fas fa-circle-info" style="margin-right:6px"></i>
+        <strong>Status</strong> is auto-computed: &gt;5 = Available · 1–5 = Low Stock · 0 = Out of Stock
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-ghost" onclick="closeModal('editItemModal')">Cancel</button>
@@ -261,11 +258,10 @@ function openBorrowModal(id, name, maxQty) {
   document.getElementById('borrow_due').min = tomorrow.toISOString().slice(0,10);
   openModal('borrowModal');
 }
-function openEditModal(id, name, desc, category, qty, status) {
+function openEditModal(id, name, desc, category, qty) {
   document.getElementById('edit_name').value = name;
   document.getElementById('edit_desc').value = desc;
   document.getElementById('edit_qty').value = qty;
-  document.getElementById('edit_status').value = status;
   const cat = document.getElementById('edit_category');
   for (let o of cat.options) { if (o.value === category) o.selected = true; }
   document.getElementById('editItemForm').action = `/items/edit/${id}`;
