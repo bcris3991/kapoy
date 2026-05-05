@@ -9,10 +9,8 @@ from ml_predictor import predict_demand, get_category_summary, predict_low_stock
 
 app = Flask(__name__)
 app.secret_key = 'wmsu_inventory_secret_key_2024'
+os.makedirs(app.instance_path, exist_ok=True)  # ✅ MOVED UP: create folder first
 DATABASE = os.path.join(app.instance_path, 'wmsu_inventory.db')
-with app.app_context():
-    init_db()
-os.makedirs(app.instance_path, exist_ok=True)
 
 # ─── DB HELPERS ───────────────────────────────────────────────────────────────
 
@@ -252,7 +250,6 @@ def items():
     all_items = db.execute(query, params).fetchall()
     categories = db.execute("SELECT DISTINCT category FROM items ORDER BY category").fetchall()
     notifs = db.execute("SELECT COUNT(*) as c FROM notifications WHERE user_id=? AND is_read=0", (session['user_id'],)).fetchone()['c']
-    # Low stock ML predictions for Staff/Admin banner
     low_stock_items = db.execute("SELECT * FROM items WHERE status IN ('Low Stock','Out of Stock') ORDER BY quantity ASC").fetchall()
     return render_template('items.html', items=all_items, categories=categories, q=q, cat=cat,
                            notif_count=notifs, low_stock_items=low_stock_items)
@@ -304,7 +301,6 @@ def edit_item(item_id):
 @login_required
 @role_required('Staff', 'Admin')
 def delete_item(item_id):
-    # Deletion is disabled — items are permanent records
     flash('Items cannot be deleted. Set quantity to 0 or status to Out of Stock instead.', 'error')
     return redirect(url_for('items'))
 
@@ -548,7 +544,6 @@ def predictions():
         "SELECT COUNT(*) as c FROM notifications WHERE user_id=? AND is_read=0",
         (session['user_id'],)
     ).fetchone()['c']
-
     return render_template(
         'prediction.html',
         predictions=preds,
@@ -557,7 +552,6 @@ def predictions():
         notif_count=notifs,
         generated_at=datetime.now().strftime('%B %d, %Y %I:%M %p')
     )
-
 
 @app.route('/api/predictions')
 @login_required
@@ -612,6 +606,11 @@ def profile():
     notifs = db.execute("SELECT COUNT(*) as c FROM notifications WHERE user_id=? AND is_read=0", (session['user_id'],)).fetchone()['c']
     return render_template('profile.html', user=user, notif_count=notifs)
 
-if __name__ == '__main__':
+# ─── INIT DB & RUN ────────────────────────────────────────────────────────────
+
+# ✅ FIX: init_db() called AFTER it is defined, works for both Gunicorn and direct run
+with app.app_context():
     init_db()
+
+if __name__ == '__main__':
     app.run(debug=True)
