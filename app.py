@@ -9,7 +9,7 @@ from ml_predictor import predict_demand, get_category_summary, predict_low_stock
 
 app = Flask(__name__)
 app.secret_key = 'wmsu_inventory_secret_key_2024'
-os.makedirs(app.instance_path, exist_ok=True)  # ✅ MOVED UP: create folder first
+os.makedirs(app.instance_path, exist_ok=True)
 DATABASE = os.path.join(app.instance_path, 'wmsu_inventory.db')
 
 # ─── DB HELPERS ───────────────────────────────────────────────────────────────
@@ -250,6 +250,7 @@ def items():
     all_items = db.execute(query, params).fetchall()
     categories = db.execute("SELECT DISTINCT category FROM items ORDER BY category").fetchall()
     notifs = db.execute("SELECT COUNT(*) as c FROM notifications WHERE user_id=? AND is_read=0", (session['user_id'],)).fetchone()['c']
+    # Low stock ML predictions for Staff/Admin banner
     low_stock_items = db.execute("SELECT * FROM items WHERE status IN ('Low Stock','Out of Stock') ORDER BY quantity ASC").fetchall()
     return render_template('items.html', items=all_items, categories=categories, q=q, cat=cat,
                            notif_count=notifs, low_stock_items=low_stock_items)
@@ -283,24 +284,42 @@ def edit_item(item_id):
     desc = request.form.get('description','').strip()
     category = request.form.get('category','General').strip()
     qty = int(request.form.get('quantity', 0))
-    status = request.form.get('status','Available')
+
+    # ✅ Auto-compute status based on quantity — never trust user input for status
+    if qty == 0:
+        status = 'Out of Stock'
+    elif qty <= 5:
+        status = 'Low Stock'
+    else:
+        status = 'Available'
+
     db = get_db()
     old = db.execute("SELECT * FROM items WHERE item_id=?", (item_id,)).fetchone()
-    qty_change = qty - (old['quantity'] if old else 0)
+    old_qty = old['quantity'] if old else 0
+    qty_change = qty - old_qty
+
+    # ✅ Build a descriptive log note showing exactly what was added/removed
+    if qty_change > 0:
+        qty_note = f'Restocked +{qty_change} unit(s). Qty: {old_qty} → {qty} [{status}]'
+    elif qty_change < 0:
+        qty_note = f'Reduced {qty_change} unit(s). Qty: {old_qty} → {qty} [{status}]'
+    else:
+        qty_note = f'Item details updated. Qty unchanged at {qty} [{status}]'
+
     db.execute("UPDATE items SET item_name=?, description=?, category=?, quantity=?, status=? WHERE item_id=?",
         (name, desc, category, qty, status, item_id))
     db.execute(
         "INSERT INTO item_logs (item_id, action, quantity_change, quantity_after, done_by_id, done_by_name, notes) VALUES (?,?,?,?,?,?,?)",
-        (item_id, 'Edited', qty_change, qty, session['user_id'], session['name'],
-         f'Item updated. Qty: {old["quantity"] if old else "?"} → {qty}'))
+        (item_id, 'Edited', qty_change, qty, session['user_id'], session['name'], qty_note))
     db.commit()
-    flash('Item updated successfully.', 'success')
+    flash(f'Item updated. Status auto-set to "{status}".', 'success')
     return redirect(url_for('items'))
 
 @app.route('/items/delete/<int:item_id>', methods=['POST'])
 @login_required
 @role_required('Staff', 'Admin')
 def delete_item(item_id):
+    # Deletion is disabled — items are permanent records
     flash('Items cannot be deleted. Set quantity to 0 or status to Out of Stock instead.', 'error')
     return redirect(url_for('items'))
 
@@ -544,6 +563,7 @@ def predictions():
         "SELECT COUNT(*) as c FROM notifications WHERE user_id=? AND is_read=0",
         (session['user_id'],)
     ).fetchone()['c']
+
     return render_template(
         'prediction.html',
         predictions=preds,
@@ -552,6 +572,7 @@ def predictions():
         notif_count=notifs,
         generated_at=datetime.now().strftime('%B %d, %Y %I:%M %p')
     )
+
 
 @app.route('/api/predictions')
 @login_required
@@ -606,9 +627,6 @@ def profile():
     notifs = db.execute("SELECT COUNT(*) as c FROM notifications WHERE user_id=? AND is_read=0", (session['user_id'],)).fetchone()['c']
     return render_template('profile.html', user=user, notif_count=notifs)
 
-# ─── INIT DB & RUN ────────────────────────────────────────────────────────────
-
-# ✅ FIX: init_db() called AFTER it is defined, works for both Gunicorn and direct run
 with app.app_context():
     init_db()
 
